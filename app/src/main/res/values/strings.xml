@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">GuardRail</string>
+    <string name="accessibility_service_description">GuardRail monitors app accessibility events to detect dark patterns and protect user experience.</string>
+</resources>
