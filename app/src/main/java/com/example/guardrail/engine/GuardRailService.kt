@@ -43,6 +43,13 @@ class GuardRailService : AccessibilityService() {
     // Flag to track if current event is a scroll event
     private var isScrollEvent = false
 
+    private data class PendingDetection(
+        val log: com.example.guardrail.lab.DetectionLog,
+        val bounds: Rect,
+        val timestamp: Long = System.currentTimeMillis()
+    )
+    private val pendingDetections = mutableListOf<PendingDetection>()
+
     // Coroutine scope for async operations (Main dispatcher for UI operations)
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -61,18 +68,94 @@ class GuardRailService : AccessibilityService() {
 
             Log.d(TAG, "Event Type: $eventType, Package Name: $packageNameSafe")
 
-            // Track scroll events but don't clear overlays yet
-            // Let viewport signature logic determine if content changed
             when (it.eventType) {
-                AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
-                    Log.d(TAG, "View scrolled - will check viewport signature")
-                    isScrollEvent = true
-                    // Don't clear overlays here - let signature check decide
-                }
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                    Log.d(TAG, "Window content changed - clearing overlays")
-                    overlayEngine.clearOverlays()
+                AccessibilityEvent.TYPE_VIEW_CLICKED -> {
+                    if (pendingDetections.isNotEmpty()) {
+                        val clickTime = System.currentTimeMillis()
+                        val node = it.source
+                        val bounds = Rect()
+
+                        if (node != null) {
+                            node.getBoundsInScreen(bounds)
+
+                            // Get the exact center coordinate of the item the user tapped
+                            val clickCenterX = bounds.centerX()
+                            val clickCenterY = bounds.centerY()
+
+                            val iterator = pendingDetections.iterator()
+                            while(iterator.hasNext()) {
+                                val pd = iterator.next()
+                                val waitTime = clickTime - pd.timestamp
+
+                                val action: String
+                                val ignored: Boolean
+
+                                // ACCURACY FIX:
+                                // 1. Did the center of their tap land inside the dark pattern?
+                                // 2. OR is the clicked item entirely wrapping the dark pattern? (e.g. a big button)
+                                val clickedOnFlag = pd.bounds.contains(clickCenterX, clickCenterY) ||
+                                                    bounds.contains(pd.bounds)
+
+                                if (clickedOnFlag) {
+                                    action = "CLICKED_FLAGGED_ITEM"
+                                    ignored = true
+                                    // Immediately clear overlay if they click the flagged item
+                                    serviceScope.launch(Dispatchers.Main) { overlayEngine.clearOverlays() }
+                                } else {
+                                    action = "CLICKED_SAFE_ITEM"
+                                    ignored = false
+                                }
+
+                                val completeLog = pd.log.copy(
+                                    timeToNextActionMs = waitTime,
+                                    postDetectionAction = action,
+                                    warningIgnored = ignored
+                                )
+                                serviceScope.launch(Dispatchers.IO) {
+                                    LabWriter.write(this@GuardRailService, completeLog)
+                                }
+                                // Clean up so it doesn't trigger on subsequent clicks
+                                iterator.remove()
+                            }
+                        }
+                    }
                     isScrollEvent = false
+                }
+
+                AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
+                    if (pendingDetections.isNotEmpty() && !isScrollEvent) {
+                        val scrollTime = System.currentTimeMillis()
+                        val iterator = pendingDetections.iterator()
+
+                        while(iterator.hasNext()) {
+                            val pd = iterator.next()
+                            val waitTime = scrollTime - pd.timestamp
+
+                            // If it's a real human scroll (>500ms hesitation)
+                            if (waitTime > 500) {
+                                val completeLog = pd.log.copy(
+                                    timeToNextActionMs = waitTime,
+                                    postDetectionAction = "SCROLLED_AWAY",
+                                    warningIgnored = false
+                                )
+                                serviceScope.launch(Dispatchers.IO) {
+                                    LabWriter.write(this@GuardRailService, completeLog)
+                                }
+                            }
+                            // ACCURACY FIX: ALWAYS remove from pending, even if <500ms.
+                            // Otherwise, fast swipes leave "ghost" detections in the list.
+                            iterator.remove()
+                        }
+                    }
+                    Log.d(TAG, "View scrolled - clearing overlays instantly")
+                    isScrollEvent = true
+                    overlayEngine.clearOverlays()
+                }
+
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                    Log.d(TAG, "Window content changed")
+                    isScrollEvent = false
+                    // 2. DO NOT CLEAR HERE: This prevents the "flashing" bug caused by minor UI updates
                 }
                 else -> {
                     isScrollEvent = false
@@ -84,8 +167,8 @@ class GuardRailService : AccessibilityService() {
 
             // Start a new debounced coroutine
             debounceJob = serviceScope.launch(Dispatchers.Main) {
-                // Wait for 300ms of inactivity
-                delay(300)
+                // Reduce wait time for a snappier response
+                delay(150)
 
                 // After delay, access rootInActiveWindow and run analysis
                 val rootNode = rootInActiveWindow
@@ -117,11 +200,6 @@ class GuardRailService : AccessibilityService() {
                     return@launch
                 }
 
-                // If scrolling and viewport changed, clear old overlays
-                if (isScrollEvent && viewportSignature != lastViewportSignature) {
-                    Log.d(TAG, "Scroll revealed new content - clearing old overlays")
-                    overlayEngine.clearOverlays()
-                }
 
                 Log.d(TAG, "New viewport detected (signature changed or scroll event)")
 
@@ -177,7 +255,7 @@ class GuardRailService : AccessibilityService() {
                             detectedText = confirmed.candidate.text,
                             latencyMs = latencyMs.toLong()
                         )
-                        LabWriter.write(this@GuardRailService, log)
+                        pendingDetections.add(PendingDetection(log, confirmed.candidate.bounds))
                     }
                 } else {
                     // Clear overlays if no dark patterns found

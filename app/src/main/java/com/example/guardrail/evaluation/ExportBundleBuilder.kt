@@ -166,16 +166,21 @@ object ExportBundleBuilder {
     }
 
     private fun exportSurveyResponses(responses: List<SurveyResponse>): String {
-        val header = "id,userId,q_helpfulness,q_intrusiveness,q_changed_decision,q_trust,freeText,timestamp"
+        val header = "id,userId,q_awareness,q_learning,q_hesitation,q_avoidance,q_interference,q_false_positives,q_trust,q_retention,critical_incident_text,general_feedback,timestamp"
         val rows = responses.map { response ->
             listOf(
                 response.id.toString(),
                 escapeField(response.userId),
-                response.q_helpfulness.toString(),
-                response.q_intrusiveness.toString(),
-                response.q_changed_decision.toString(),
+                response.q_awareness.toString(),
+                response.q_learning.toString(),
+                response.q_hesitation.toString(),
+                response.q_avoidance.toString(),
+                response.q_interference.toString(),
+                response.q_false_positives.toString(),
                 response.q_trust.toString(),
-                escapeField(response.freeText ?: ""),
+                response.q_retention.toString(),
+                escapeField(response.critical_incident_text ?: ""),
+                escapeField(response.general_feedback ?: ""),
                 response.timestamp.toString()
             ).joinToString(",")
         }

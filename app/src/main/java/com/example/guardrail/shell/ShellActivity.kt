@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -64,20 +63,6 @@ fun ShellApp() {
                     }
                 )
 
-                NavigationBarItem(
-                    icon = { Icon(Icons.Filled.Info, contentDescription = "Status") },
-                    label = { Text("Status") },
-                    selected = currentDestination?.hierarchy?.any { it.route == "status" } == true,
-                    onClick = {
-                        navController.navigate("status") {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
 
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Settings, contentDescription = "Evaluation") },
@@ -105,9 +90,6 @@ fun ShellApp() {
                 HomeScreen()
             }
 
-            composable("status") {
-                StatusScreen()
-            }
 
             composable("evaluation") {
                 EvaluationScreen(
@@ -121,11 +103,11 @@ fun ShellApp() {
             }
 
             composable("analysis") {
-                AnalysisScreen()
+                AnalysisScreen(onBack = { navController.popBackStack() })
             }
 
             composable("survey") {
-                SurveyScreen()
+                SurveyScreen(onBack = { navController.popBackStack() })
             }
         }
     }

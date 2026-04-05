@@ -19,17 +19,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import com.example.guardrail.evaluation.AnalysisSummary
 import com.example.guardrail.evaluation.AnalysisSummaryProvider
 import com.example.guardrail.ui.theme.GuardRailTheme
 
 @Composable
-fun AnalysisScreen(modifier: Modifier = Modifier) {
+fun AnalysisScreen(modifier: Modifier = Modifier, onBack: () -> Unit = {}) {
     val context = LocalContext.current
     var summary by remember { mutableStateOf<AnalysisSummary?>(null) }
 
@@ -49,11 +54,22 @@ fun AnalysisScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header
-        Text(
-            text = "Analysis Summary",
-            style = MaterialTheme.typography.headlineMedium,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(bottom = 8.dp)
-        )
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back"
+                )
+            }
+            Text(
+                text = "Analysis Summary",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
 
         summary?.let { data ->
             // Summary Stats
@@ -222,4 +238,3 @@ fun AnalysisScreenPreview() {
         AnalysisScreen()
     }
 }
-

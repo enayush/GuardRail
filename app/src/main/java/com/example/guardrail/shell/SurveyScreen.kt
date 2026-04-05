@@ -1,55 +1,47 @@
 package com.example.guardrail.shell
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import com.example.guardrail.lab.LabDatabaseProvider
 import com.example.guardrail.lab.SurveyResponse
 import com.example.guardrail.lab.UserSession
-import com.example.guardrail.ui.theme.GuardRailTheme
 import kotlinx.coroutines.launch
 
 @Composable
-fun SurveyScreen(modifier: Modifier = Modifier) {
+fun SurveyScreen(modifier: Modifier = Modifier, onBack: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    // Survey state
-    var q_helpfulness by remember { mutableIntStateOf(3) }
-    var q_intrusiveness by remember { mutableIntStateOf(3) }
-    var q_changed_decision by remember { mutableStateOf(false) }
-    var q_trust by remember { mutableIntStateOf(3) }
-    var freeText by remember { mutableStateOf("") }
+    // State for all 8 Likert questions (Default to 3 = Neutral)
+    var qAwareness by remember { mutableIntStateOf(3) }
+    var qLearning by remember { mutableIntStateOf(3) }
+    var qHesitation by remember { mutableIntStateOf(3) }
+    var qAvoidance by remember { mutableIntStateOf(3) }
+    var qInterference by remember { mutableIntStateOf(3) }
+    var qFalsePositives by remember { mutableIntStateOf(3) }
+    var qTrust by remember { mutableIntStateOf(3) }
+    var qRetention by remember { mutableIntStateOf(3) }
+
+    // Text Feedback
+    var criticalIncidentText by remember { mutableStateOf("") }
+    var generalFeedback by remember { mutableStateOf("") }
+
     var isSubmitted by remember { mutableStateOf(false) }
 
     Column(
@@ -60,57 +52,74 @@ fun SurveyScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header
-        Text(
-            text = "User Survey",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back"
+                    )
+                }
+                Text(
+                    text = "GuardRail Exit Survey",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            Text(
+                text = "Please evaluate your experience. For the scales below, 1 = Strongly Disagree and 5 = Strongly Agree.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
 
-        Text(
-            text = "Please share your experience with GuardRail",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        // Section 1: Awareness & Learning
+        SurveySection("Awareness & Learning") {
+            LikertQuestion("1. The app made me more aware of manipulative UI (Dark Patterns).", qAwareness) { if (!isSubmitted) qAwareness = it }
+            LikertQuestion("2. I began recognizing dark patterns on my own, even before the overlay appeared.", qLearning) { if (!isSubmitted) qLearning = it }
+        }
 
-        // Question 1: Helpfulness
-        QuestionCard(
-            question = "1. Did GuardRail help you notice deceptive UI?",
-            selectedValue = q_helpfulness,
-            onValueChange = { q_helpfulness = it },
-            enabled = !isSubmitted
-        )
+        // Section 2: Behavioral Impact
+        SurveySection("Behavioral Impact") {
+            LikertQuestion("3. The warnings caused me to pause and think before interacting with flagged UI.", qHesitation) { if (!isSubmitted) qHesitation = it }
+            LikertQuestion("4. I successfully avoided making unintended clicks or decisions because of the warnings.", qAvoidance) { if (!isSubmitted) qAvoidance = it }
+        }
 
-        // Question 2: Intrusiveness
-        QuestionCard(
-            question = "2. Were the overlays intrusive?",
-            selectedValue = q_intrusiveness,
-            onValueChange = { q_intrusiveness = it },
-            enabled = !isSubmitted
-        )
+        // Section 3: Usability & Interference
+        SurveySection("Usability & Interference") {
+            LikertQuestion("5. The red overlays significantly interfered with my normal app usage.", qInterference) { if (!isSubmitted) qInterference = it }
+            LikertQuestion("6. The system frequently flagged safe, normal UI elements by mistake (False Positives).", qFalsePositives) { if (!isSubmitted) qFalsePositives = it }
+        }
 
-        // Question 3: Changed Decision (Yes/No)
-        YesNoQuestionCard(
-            question = "3. Did it change any decision you made?",
-            selectedValue = q_changed_decision,
-            onValueChange = { q_changed_decision = it },
-            enabled = !isSubmitted
-        )
+        // Section 4: Trust & Adoption
+        SurveySection("Trust & Future Use") {
+            LikertQuestion("7. I trust the system's ability to accurately identify deceptive content.", qTrust) { if (!isSubmitted) qTrust = it }
+            LikertQuestion("8. I would keep this application installed on my primary device.", qRetention) { if (!isSubmitted) qRetention = it }
+        }
 
-        // Question 4: Trust
-        QuestionCard(
-            question = "4. How much do you trust the detection?",
-            selectedValue = q_trust,
-            onValueChange = { q_trust = it },
-            enabled = !isSubmitted
-        )
+        // Section 5: Qualitative Data
+        SurveySection("Qualitative Feedback") {
+            TextQuestion(
+                "9. Critical Incident (Optional)",
+                "Describe one specific instance where GuardRail changed your action.",
+                criticalIncidentText,
+                enabled = !isSubmitted
+            ) { criticalIncidentText = it }
 
-        // Question 5: Optional Feedback
-        FeedbackCard(
-            value = freeText,
-            onValueChange = { freeText = it },
-            enabled = !isSubmitted
-        )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TextQuestion(
+                "10. General Feedback (Optional)",
+                "Any bugs, annoyances, or feature requests?",
+                generalFeedback,
+                enabled = !isSubmitted
+            ) { generalFeedback = it }
+        }
 
         // Submit Button
         Button(
@@ -119,100 +128,87 @@ fun SurveyScreen(modifier: Modifier = Modifier) {
                     val userId = UserSession.getUserId(context)
                     val response = SurveyResponse(
                         userId = userId,
-                        q_helpfulness = q_helpfulness,
-                        q_intrusiveness = q_intrusiveness,
-                        q_changed_decision = q_changed_decision,
-                        q_trust = q_trust,
-                        freeText = freeText.ifBlank { null },
-                        timestamp = System.currentTimeMillis()
+                        q_awareness = qAwareness,
+                        q_learning = qLearning,
+                        q_hesitation = qHesitation,
+                        q_avoidance = qAvoidance,
+                        q_interference = qInterference,
+                        q_false_positives = qFalsePositives,
+                        q_trust = qTrust,
+                        q_retention = qRetention,
+                        critical_incident_text = criticalIncidentText.ifBlank { null },
+                        general_feedback = generalFeedback.ifBlank { null }
                     )
-
-                    val db = LabDatabaseProvider.get(context)
-                    db.surveyDao().insert(response)
+                    LabDatabaseProvider.get(context).surveyDao().insert(response)
                     isSubmitted = true
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
+                .height(56.dp)
+                .padding(bottom = 16.dp),
             enabled = !isSubmitted
         ) {
-            Text(
-                text = if (isSubmitted) "Submitted" else "Submit Survey",
-                style = MaterialTheme.typography.titleMedium
-            )
-        }
-
-        if (isSubmitted) {
-            Text(
-                text = "Thank you for your feedback!",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+            Text(if (isSubmitted) "Data Recorded Successfully" else "Submit Final Survey")
         }
     }
 }
 
 @Composable
-private fun QuestionCard(
+private fun SurveySection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun LikertQuestion(
     question: String,
     selectedValue: Int,
-    onValueChange: (Int) -> Unit,
-    enabled: Boolean,
-    modifier: Modifier = Modifier
+    onValueChange: (Int) -> Unit
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = question,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = question,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-
-            Text(
-                text = "1 = Strongly Disagree, 5 = Strongly Agree",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            // Radio buttons for 1-5
-            Column(
-                modifier = Modifier.selectableGroup(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                (1..5).forEach { value ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selectedValue == value,
-                                onClick = { if (enabled) onValueChange(value) },
-                                role = Role.RadioButton,
-                                enabled = enabled
-                            )
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedValue == value,
-                            onClick = null,
-                            enabled = enabled
-                        )
-                        Text(
-                            text = value.toString(),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
+            (1..5).forEach { value ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.selectable(
+                        selected = selectedValue == value,
+                        onClick = { onValueChange(value) },
+                        role = Role.RadioButton
+                    )
+                ) {
+                    RadioButton(
+                        selected = selectedValue == value,
+                        onClick = null // Handled by parent modifier
+                    )
+                    Text(text = value.toString(), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -220,137 +216,26 @@ private fun QuestionCard(
 }
 
 @Composable
-private fun YesNoQuestionCard(
-    question: String,
-    selectedValue: Boolean,
-    onValueChange: (Boolean) -> Unit,
-    enabled: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = question,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-
-            // Radio buttons for Yes/No
-            Column(
-                modifier = Modifier.selectableGroup(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // Yes option
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = selectedValue,
-                            onClick = { if (enabled) onValueChange(true) },
-                            role = Role.RadioButton,
-                            enabled = enabled
-                        )
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = selectedValue,
-                        onClick = null,
-                        enabled = enabled
-                    )
-                    Text(
-                        text = "Yes",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-
-                // No option
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = !selectedValue,
-                            onClick = { if (enabled) onValueChange(false) },
-                            role = Role.RadioButton,
-                            enabled = enabled
-                        )
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = !selectedValue,
-                        onClick = null,
-                        enabled = enabled
-                    )
-                    Text(
-                        text = "No",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FeedbackCard(
+private fun TextQuestion(
+    title: String,
+    subtitle: String,
     value: String,
-    onValueChange: (String) -> Unit,
     enabled: Boolean,
-    modifier: Modifier = Modifier
+    onValueChange: (String) -> Unit
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
+    Column {
+        Text(text = title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+        Text(text = subtitle, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "5. Optional Feedback",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-
-            Text(
-                text = "Share any additional thoughts or suggestions",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
-                enabled = enabled,
-                placeholder = { Text("Enter your feedback (optional)") },
-                maxLines = 5
-            )
-        }
+                .padding(top = 6.dp)
+                .height(84.dp),
+            enabled = enabled,
+            maxLines = 3,
+            textStyle = MaterialTheme.typography.bodyMedium
+        )
     }
 }
-
-@Preview(showBackground = true)
-@Composable
-fun SurveyScreenPreview() {
-    GuardRailTheme {
-        SurveyScreen()
-    }
-}
-
-

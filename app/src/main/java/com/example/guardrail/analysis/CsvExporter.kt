@@ -5,7 +5,7 @@ import com.example.guardrail.lab.DetectionLog
 object CsvExporter {
 
     fun exportLogs(logs: List<DetectionLog>): String {
-        val header = "id,userId,packageName,patternType,detectedText,latencyMs,timestamp"
+        val header = "id,userId,packageName,patternType,detectedText,latencyMs,timestamp,timeToNextActionMs,postDetectionAction,warningIgnored"
         val rows = logs.map { log ->
             listOf(
                 log.id.toString(),
@@ -14,7 +14,10 @@ object CsvExporter {
                 escapeField(log.patternType),
                 escapeField(log.detectedText),
                 log.latencyMs.toString(),
-                log.timestamp.toString()
+                log.timestamp.toString(),
+                log.timeToNextActionMs?.toString() ?: "",
+                escapeField(log.postDetectionAction ?: ""),
+                log.warningIgnored?.toString() ?: ""
             ).joinToString(",")
         }
         return listOf(header).plus(rows).joinToString("\n")
@@ -28,4 +31,3 @@ object CsvExporter {
         }
     }
 }
-

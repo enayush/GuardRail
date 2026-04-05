@@ -12,6 +12,8 @@ data class DetectionLog(
     val patternType: String,
     val detectedText: String,
     val latencyMs: Long,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val timeToNextActionMs: Long? = null,
+    val postDetectionAction: String? = null,
+    val warningIgnored: Boolean? = null
 )
-

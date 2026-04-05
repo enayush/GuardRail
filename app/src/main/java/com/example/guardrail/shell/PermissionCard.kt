@@ -65,8 +65,10 @@ fun PermissionCard(
                 )
 
                 // Button
-                Button(onClick = onClick) {
-                    Text("Open Settings")
+                if (!granted) {
+                    Button(onClick = onClick) {
+                        Text("Open Settings")
+                    }
                 }
             }
         }
